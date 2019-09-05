@@ -1,118 +1,104 @@
 #!/usr/bin/env python
 
+import operator
 import tkinter as tk
 import random
 import time
 
 
-class RGBMatrix:
-  def __init__(self, height, width):
-    self.height = height
-    self.width = width
-    self.tiles = makeTiles(height, width)
-
-  class Tile:
-    def __init__(self, x, y, color):
-      self.x = x
-      self.y = y
-      self.color = color
-
-
-def makeRGBMatrix(height, width):
-  rgbm = RGBMatrix(height, width)
-  return rgbm
-
-
-def makeTiles(height, width):
-  # init tiles as black
-  tiles = [[RGBMatrix.Tile(x, y, (0, 0, 0))
-            for x in range(width)] for y in range(height)]
-  return tiles
-
-
 def rgb(color):
-  color_html = "#%02x%02x%02x" % color
-  return color_html
+  color_html = "#%02x%02x%02x" % tuple(map(int, color))
+  return(color_html)
 
 
-# create gui
-width, height = 500, 500
-gui = tk.Tk()
-gui.title("RGB Matrix")
-canvas = tk.Canvas(gui, width=width, height=height)
-canvas = tk.Canvas(gui, width=width, height=height)
+class RGBMatrix(tk.Frame):
+
+  def __init__(self, *args, **kw):
+    tk.Frame.__init__(self, *args, **kw)
+
+    width, height = 500, 500
+    rows, cols = 10, 10
+
+    # colors
+    black = (0, 0, 0)
+
+    self.led_ids = []
+    self.canvas = tk.Canvas(self, width=width, height=height)
+
+    # init colorMatrix with black tiles
+    colorMatrix = [[black for x in range(cols)] for y in range(rows)]
+
+    rect_width, rect_height = width // rows, height // cols
+
+    for y, row in enumerate(colorMatrix):
+      for x, color in enumerate(row):
+        x0, y0 = x * rect_width, y * rect_height
+        x1, y1 = x0 + rect_width-1, y0 + rect_height-1
+        led = self.canvas.create_rectangle(
+            x0, y0, x1, y1, fill=rgb(color), width=0)
+        self.led_ids.append(led)
+
+    self.canvas.pack()
+
+  def get_led_ids(self):
+    return(self.led_ids)
+
+  def led_change_color(self, led_id, rgb_color):
+    self.canvas.itemconfig(led_id, fill=rgb(rgb_color))
 
 
-def show_led(colorMatrix):
-  canvas.delete('all')
-  rows, cols = len(colorMatrix), len(colorMatrix[0])
-  rect_width, rect_height = width // rows, height // cols
-  for y, row in enumerate(colorMatrix):
-    for x, color in enumerate(row):
-      x0, y0 = x * rect_width, y * rect_height
-      x1, y1 = x0 + rect_width-1, y0 + rect_height-1
-      canvas.create_rectangle(x0, y0, x1, y1, fill=rgb(color), width=0)
-  canvas.pack()
+# working on a fade effect
+# def smooth_transistion(w, led_id, rgb_start, rgb_end, duration_fade):
+#   refresh_ms = 10
+#   delta = tuple(map(operator.sub, rgb_end, rgb_start))
+#   iters = duration_fade / refresh_ms
+#   titers = (iters, iters, iters)
+#   diff = tuple(map(operator.truediv, delta, titers))
+#   rgb = rgb_start
+#   for _ in range(1, int(iters)):
+#     rgb = tuple(map(operator.add, rgb, diff))
+#     w.after(refresh_ms, w.led_change_color, led_id, rgb)
 
 
-# globals vars
-i = None
-passed = []
-refresh_ms = 20
+def task(w):
+  refresh_ms = 100
 
-
-def task(refresh_ms):
-  # init global vars
-  global i
-  global passed
-  if i is None:
-    i = 0
-  # colors
-  black = (0, 0, 0)
-  blue = (0, 0, 255)
-  cyan = (0, 255, 255)
-  red = (255, 0, 0)
-
-  # init colorMatrix with black tiles
-  colorMatrix = [[black for x in range(10)] for y in range(10)]
-
-  # assign correct matrix position
-  if i in range(10):
-    row = 0
-    col = i
-  elif i in range(10, 20):
-    row = i - 10
-    col = 9
-  elif i in range(20, 30):
-    row = 9
-    col = 29 - i
-  elif i in range(30, 40):
-    row = 39 - i
-    col = 0
-  colorMatrix[row][col] = blue
-  if [row, col] in passed:
-    passed.remove([row, col])
-  for tile in passed:
-    colorMatrix[tile[0]][tile[1]] = cyan
-  passed.append([row, col])
-
-  # if i > 0:
-  #   colorMatrix[row][col - 1] = cyan
-  i += 1
-  if i > 39:
-    i = 0
-
-  # for n in range(10):
-  #   colorMatrix[0][n] = blue
-
-  show_led(colorMatrix)
-  gui.after(refresh_ms, task, refresh_ms)
+  leds_all = w.get_led_ids()
+  leds_border = []
+  # add top row
+  for i in range(1, 10):
+    leds_border.append(i)
+  # right side
+  for i in range(10, 100, 10):
+    leds_border.append(i)
+  # add bot row inverse
+  for i in range(100, 90, -1):
+    leds_border.append(i)
+  # left side inverse
+  for i in range(81, 1, -10):
+    leds_border.append(i)
+  for led in leds_border:
+    r = random.randint(0, 255)
+    g = random.randint(0, 255)
+    b = random.randint(0, 255)
+    w.led_change_color(led, (r, g, b))
+  rled = random.randint(1, 36)
+  smooth_transistion(w, rled, (255, 0, 50), (50, 0, 255), 5000)
+  w.after(refresh_ms, task, w)
 
 
 def main():
+  # create app
+  gui = tk.Tk()
+  gui.title("RGB Matrix")
+  # initialize gui
+  w = RGBMatrix(gui)
+  # show gui
+  w.pack()
   # run task
-  gui.after(0, task, refresh_ms)
-  gui.mainloop()
+  w.after(0, task, w)
+  # mainloop
+  w.mainloop()
 
 
 if __name__ == '__main__':
